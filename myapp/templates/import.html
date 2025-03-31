@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Transactions Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jQuery CDN -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Font Awesome for Icons (for the sidebar toggle button) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Custom Tailwind Config for Additional Styling -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#1D4ED8', // Blue for buttons and accents
+                        'secondary': '#6B7280', // Gray for secondary elements
+                        'sidebar-bg': '#F3F4F6', // Light gray for sidebar
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        /* Custom styles for table filters */
+        .filter-input {
+            padding: 0.5rem;
+            border: 1px solid #D1D5DB;
+            border-radius: 0.375rem;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .table-container {
+            max-height: calc(50vh - 100px); /* Adjust for each table to fit vertically */
+            overflow-y: auto;
+            overflow-x: auto; /* Enable horizontal scrolling */
+        }
+        .table {
+            width: max-content; /* Allow the table to expand to fit all columns */
+        }
+        .table th, .table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #E5E7EB;
+            min-width: 150px; /* Ensure columns have a minimum width */
+            white-space: nowrap; /* Prevent text wrapping */
+        }
+        .table th {
+            background-color: #F9FAFB;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .table tr:hover {
+            background-color: #F3F4F6;
+            cursor: pointer;
+        }
+        .table tr.selected {
+            background-color: #DBEAFE;
+        }
+        /* Ensure the layout fits the screen */
+        .main-content {
+            display: flex;
+            flex-direction: row;
+            height: calc(100vh - 150px); /* Adjust for header, buttons, and padding */
+        }
+        .left-section {
+            width: 50%;
+            flex: 1; /* Reduced to give more space to the right section */
+            display: flex;
+            flex-direction: column;
+            margin-right: 1.5rem;
+        }
+        .right-section {
+            width: 50%;
+            flex: 4; /* Increased to make the Transactions table wider */
+            overflow-x: auto; /* Ensure the right section can scroll horizontally */
+        }
+        /* Sidebar styles */
+        .sidebar {
+            transition: width 0.3s ease;
+        }
+        .sidebar.collapsed {
+            width: 60px;
+        }
+        .sidebar.collapsed .sidebar-content {
+            display: none;
+        }
+        .sidebar-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #1D4ED8;
+            color: white;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="sidebar w-64 bg-sidebar-bg p-4 shadow-lg relative">
+            <button id="sidebar-toggle" class="sidebar-toggle">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <div class="sidebar-content">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Banks</h2>
+                <ul>
+                    <li class="mb-2">
+                        <a href="#" class="block p-2 rounded-lg bg-primary text-white">Banca Transilvania</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#" class="block p-2 rounded-lg text-gray-500 hover:bg-gray-200">Bank 2 (Coming Soon)</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#" class="block p-2 rounded-lg text-gray-500 hover:bg-gray-200">Bank 3 (Coming Soon)</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 p-6 overflow-hidden">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Bank Transactions Dashboard</h1>
+
+            <!-- Buttons -->
+            <div class="mb-6 flex space-x-4">
+                <!-- Import Button -->
+                <form id="import_form" method="post" enctype="multipart/form-data" class="flex items-center">
+                    {% csrf_token %}
+                    <input type="file" id="json_file" name="json_file" accept=".json" required class="hidden" onchange="this.form.submit()">
+                    <label for="json_file" class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 cursor-pointer">
+                        Import JSON
+                    </label>
+                </form>
+                <!-- Parse with AI Button -->
+                <button id="parse_ai" class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                    Parse Bank Transaction with AI
+                </button>
+            </div>
+
+            <!-- Tables Section -->
+            <div class="main-content">
+                <!-- Left Section: Statements and Daily Summaries -->
+                <div class="left-section">
+                    <!-- Statements Table -->
+                    <div class="bg-white p-4 rounded-lg shadow-md mb-4 flex-1">
+                        <h2 class="text-xl font-semibold text-gray-800 mb-4">Statements</h2>
+                        <div class="table-container">
+                            <table id="statements_table" class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Statement Number</th>
+                                        <th>Period</th>
+                                        <th>Initial Balance</th>
+                                        <th>Final Balance</th>
+                                        <th>First Date</th>
+                                        <th>Last Date</th>
+                                    </tr>
+                                    <tr>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for statement in statements %}
+                                    <tr data-id="{{ statement.id }}">
+                                        <td>{{ statement.statement_number }}</td>
+                                        <td>{{ statement.period }}</td>
+                                        <td>{{ statement.initial_balance }}</td>
+                                        <td>{{ statement.final_balance }}</td>
+                                        <td>{{ statement.first_date }}</td>
+                                        <td>{{ statement.last_date }}</td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-gray-500">No statements available.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Daily Summaries Table -->
+                    <div class="bg-white p-4 rounded-lg shadow-md flex-1">
+                        <h2 class="text-xl font-semibold text-gray-800 mb-4">Daily Summaries</h2>
+                        <div class="table-container">
+                            <table id="daily_summaries_table" class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Debit</th>
+                                        <th>Credit</th>
+                                        <th>Daily Final Balance</th>
+                                        <th>Transaction Count</th>
+                                        <th>Balance Verified</th>
+                                    </tr>
+                                    <tr>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                        <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="6" class="text-center text-gray-500">Select a statement to view daily summaries.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Section: Transactions Table -->
+                <div class="right-section bg-white p-4 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Transactions</h2>
+                    <div class="table-container">
+                        <table id="transactions_table" class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Debit</th>
+                                    <th>Credit</th>
+                                    <th>Value</th>
+                                    <th>Value Type</th>
+                                    <th>Description</th>
+                                    <th>IBAN Partner</th>
+                                    <th>Initial Sold</th>
+                                    <th>Final Sold</th>
+                                    <th>Partner Name</th>
+                                    <th>Transaction Type</th>
+                                    <th>Reference</th>
+                                </tr>
+                                <tr>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                    <th><input type="text" class="filter-input" placeholder="Filter"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="12" class="text-center text-gray-500">Select a daily summary to view transactions.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript for Table Interactions, Filtering, and Sidebar Toggle -->
+    <script>
+        $(document).ready(function() {
+            // Function to apply filters to a table
+            function applyFilters(tableId) {
+                $(`#${tableId} thead tr:eq(1) th`).each(function(i) {
+                    $(this).find('input').on('keyup', function() {
+                        const value = this.value.toLowerCase();
+                        $(`#${tableId} tbody tr`).filter(function() {
+                            const cellText = $(this).children('td').eq(i).text().toLowerCase();
+                            $(this).toggle(cellText.indexOf(value) > -1);
+                        });
+                    });
+                });
+            }
+
+            // Apply filters to all tables
+            applyFilters('statements_table');
+            applyFilters('daily_summaries_table');
+            applyFilters('transactions_table');
+
+            // Handle statement row click to load daily summaries
+            $('#statements_table tbody tr').click(function() {
+                $('#statements_table tbody tr').removeClass('selected');
+                $(this).addClass('selected');
+                const statementId = $(this).data('id');
+
+                // Fetch daily summaries via AJAX
+                $.ajax({
+                    url: '/get_daily_summaries/',
+                    data: { statement_id: statementId },
+                    success: function(data) {
+                        const tbody = $('#daily_summaries_table tbody');
+                        tbody.empty();
+                        if (data.daily_summaries.length === 0) {
+                            tbody.append('<tr><td colspan="6" class="text-center text-gray-500">No daily summaries available.</td></tr>');
+                        } else {
+                            data.daily_summaries.forEach(summary => {
+                                tbody.append(`
+                                    <tr data-id="${summary.id}">
+                                        <td>${summary.date}</td>
+                                        <td>${summary.debit}</td>
+                                        <td>${summary.credit}</td>
+                                        <td>${summary.daily_final_balance}</td>
+                                        <td>${summary.transaction_count}</td>
+                                        <td>${summary.balance_verified}</td>
+                                    </tr>
+                                `);
+                            });
+                        }
+                        // Clear transactions table
+                        $('#transactions_table tbody').html('<tr><td colspan="12" class="text-center text-gray-500">Select a daily summary to view transactions.</td></tr>');
+                    },
+                    error: function() {
+                        alert('Error loading daily summaries.');
+                    }
+                });
+            });
+
+            // Handle daily summary row click to load transactions
+            $(document).on('click', '#daily_summaries_table tbody tr', function() {
+                $('#daily_summaries_table tbody tr').removeClass('selected');
+                $(this).addClass('selected');
+                const dailySummaryId = $(this).data('id');
+
+                // Fetch transactions via AJAX
+                $.ajax({
+                    url: '/get_transactions/',
+                    data: { daily_summary_id: dailySummaryId },
+                    success: function(data) {
+                        const tbody = $('#transactions_table tbody');
+                        tbody.empty();
+                        if (data.transactions.length === 0) {
+                            tbody.append('<tr><td colspan="12" class="text-center text-gray-500">No transactions available.</td></tr>');
+                        } else {
+                            data.transactions.forEach(transaction => {
+                                tbody.append(`
+                                    <tr>
+                                        <td>${transaction.date}</td>
+                                        <td>${transaction.debit}</td>
+                                        <td>${transaction.credit}</td>
+                                        <td>${transaction.value}</td>
+                                        <td>${transaction.value_type}</td>
+                                        <td>${transaction.description}</td>
+                                        <td>${transaction.iban_partner || ''}</td>
+                                        <td>${transaction.initial_sold}</td>
+                                        <td>${transaction.final_sold}</td>
+                                        <td>${transaction.partner_name || ''}</td>
+                                        <td>${transaction.transaction_type || ''}</td>
+                                        <td>${transaction.reference || ''}</td>
+                                    </tr>
+                                `);
+                            });
+                        }
+                    },
+                    error: function() {
+                        alert('Error loading transactions.');
+                    }
+                });
+            });
+
+            // Placeholder for Parse with AI button
+            $('#parse_ai').click(function() {
+                alert('Parse Bank Transaction with AI functionality coming soon!');
+            });
+
+            // Sidebar toggle functionality
+            $('#sidebar-toggle').click(function() {
+                $('.sidebar').toggleClass('collapsed');
+                const icon = $(this).find('i');
+                if (icon.hasClass('fa-chevron-left')) {
+                    icon.removeClass('fa-chevron-left').addClass('fa-chevron-right');
+                } else {
+                    icon.removeClass('fa-chevron-right').addClass('fa-chevron-left');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
