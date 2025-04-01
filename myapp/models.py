@@ -54,3 +54,12 @@ class Transaction(models.Model):
 
     class Meta:
         ordering = ['date', 'id']
+
+
+class ProcessedFile(models.Model):
+    file = models.FileField(upload_to='processed_files/')  # Stores the uploaded file
+    processed_at = models.DateTimeField(auto_now_add=True)  # Automatically sets the date and time when the file is processed
+    description = models.TextField(blank=True, null=True)  # Optional description or metadata about the file
+
+    def __str__(self):
+        return f"{self.file.name} - Processed at {self.processed_at}"

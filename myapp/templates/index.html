@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Process PDF</title>
+</head>
+<body>
+    <h1>Process PDF Pipeline</h1>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" name="pdf_file" accept=".pdf" />
+        <button type="button" onclick="processFile()">Process</button>
+    </form>
+    <pre id="result"></pre>
+
+    <script>
+        function processFile() {
+            const form = document.getElementById('uploadForm');
+            const formData = new FormData(form);
+            fetch("{% url 'process_pdf' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('result').textContent = 'An error occurred.';
+            });
+        }
+    </script>
+</body>
+</html>

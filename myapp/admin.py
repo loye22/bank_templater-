@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Statement, DailySummary, Transaction
+from .models import Statement, DailySummary, Transaction , ProcessedFile
 class TransactionInline(admin.TabularInline):
     model = Transaction
     extra = 0
@@ -35,4 +35,6 @@ class TransactionAdmin(admin.ModelAdmin):
     search_fields = ['description', 'partner_name', 'reference', 'iban_partner']
 
 
-
+@admin.register(ProcessedFile)
+class ProcessedFileAdmin(admin.ModelAdmin):
+    list_display = ('file', 'processed_at', 'description')
