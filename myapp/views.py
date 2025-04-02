@@ -160,9 +160,12 @@ from .pipeline import step_4_json
 from .pipeline import step_5_convert_csv
 from .pipeline import step_6_gpt
 from .pipeline import step_7_gpt_csv
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configure OpenAI API key (use environment variable for security)
-openai.api_key = os.getenv("OPENAI_API_KEY", "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")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def run_steps_1_to_7(pdf_path):
     """
